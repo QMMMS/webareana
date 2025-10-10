@@ -5,7 +5,7 @@
 #
 # Usage:
 #   source setup_env.sh <your-server-hostname-or-ip>
-#   source setup_env.sh ec2-13-215-90-135.ap-southeast-1.compute.amazonaws.com/
+#   source setup_env.sh 10.130.138.30
 #
 # Example:
 #   source setup_env.sh YOUR_WEBARENA_SERVER
@@ -32,7 +32,7 @@ export REDDIT="http://${SERVER_HOST}:9999"
 export GITLAB="http://${SERVER_HOST}:8023"
 export MAP="http://${SERVER_HOST}:3000"
 export WIKIPEDIA="http://${SERVER_HOST}:8888/wikipedia_en_all_maxi_2022-05/A/User:The_other_Kiwix_guy/Landing"
-export HOMEPAGE="PASS"
+export HOMEPAGE="http://${SERVER_HOST}:4399/"
 export OPENAI_API_KEY="sk-khwk6tpwWCA7ANFoljLONZ4Xln766pTzuEkDkEXYvxdzNcXQ"
 export OPENAI_API_BASE="https://api2.aigcbest.top/v1"
 

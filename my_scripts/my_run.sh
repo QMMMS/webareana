@@ -6,6 +6,13 @@ python run.py \
   --result_dir result
 
 
+python run.py \
+  --instruction_path agent/prompts/jsons/p_cot_id_actree_2s.json \
+  --test_start_idx 27 \
+  --test_end_idx 32 \
+  --model gpt-4o \
+  --result_dir result27_32
+
 sudo apt-get install libatk1.0-0\                
     libatk-bridge2.0-0\                          
     libcups2\                                    
