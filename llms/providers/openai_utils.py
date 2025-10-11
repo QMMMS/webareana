@@ -10,7 +10,12 @@ from typing import Any
 
 import aiolimiter
 import openai
-import openai.error
+from openai import OpenAIError
+from typing import Any, List, Dict
+
+# LangChain 和 LangSmith 的相关导入
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, ChatMessage
 from tqdm.asyncio import tqdm_asyncio
 
 
@@ -20,7 +25,7 @@ def retry_with_exponential_backoff(  # type: ignore
     exponential_base: float = 2,
     jitter: bool = True,
     max_retries: int = 3,
-    errors: tuple[Any] = (openai.error.RateLimitError,),
+    errors: tuple[Any] = (openai.RateLimitError,),
 ):
     """Retry a function with exponential backoff."""
 
@@ -75,12 +80,12 @@ async def _throttled_openai_completion_acreate(
                     max_tokens=max_tokens,
                     top_p=top_p,
                 )
-            except openai.error.RateLimitError:
+            except openai.RateLimitError:
                 logging.warning(
                     "OpenAI API rate limit exceeded. Sleeping for 10 seconds."
                 )
                 await asyncio.sleep(10)
-            except openai.error.APIError as e:
+            except openai.APIError as e:
                 logging.warning(f"OpenAI API error: {e}")
                 break
         return {"choices": [{"message": {"content": ""}}]}
@@ -179,7 +184,7 @@ async def _throttled_openai_chat_completion_acreate(
                     max_tokens=max_tokens,
                     top_p=top_p,
                 )
-            except openai.error.RateLimitError:
+            except openai.RateLimitError:
                 logging.warning(
                     "OpenAI API rate limit exceeded. Sleeping for 10 seconds."
                 )
@@ -187,7 +192,7 @@ async def _throttled_openai_chat_completion_acreate(
             except asyncio.exceptions.TimeoutError:
                 logging.warning("OpenAI API timeout. Sleeping for 10 seconds.")
                 await asyncio.sleep(10)
-            except openai.error.APIError as e:
+            except openai.APIError as e:
                 logging.warning(f"OpenAI API error: {e}")
                 break
         return {"choices": [{"message": {"content": ""}}]}
@@ -267,6 +272,65 @@ def generate_from_openai_chat_completion(
     )
     answer: str = response["choices"][0]["message"]["content"]
     return answer
+
+
+def generate_from_openai_chat_completion_new(
+    messages: List[Dict[str, str]],
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    top_p: float,
+    context_length: int, # 这个参数在ChatOpenAI中不直接使用，但为了保持签名一致而保留
+    stop_token: str | None = None,
+) -> str:
+    """
+    使用 LangChain 的 ChatOpenAI 生成聊天回复，并支持 LangSmith 追踪。
+    函数签名与旧版完全兼容。
+    """
+    if "OPENAI_API_KEY" not in os.environ and "api_key" not in locals():
+        raise ValueError("OPENAI_API_KEY environment variable must be set.")
+
+    # 1. 初始化 LangChain 的 ChatOpenAI 客户端
+    # 将旧函数的参数映射到 ChatOpenAI 的构造函数中
+    llm = ChatOpenAI(
+        # 从环境变量获取 key 和 base_url，提供默认值
+        api_key=os.environ.get("OPENAI_API_KEY"),
+        base_url=os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1"),
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
+        stop=[stop_token] if stop_token else None,
+        model_kwargs={}, # 如果没有其他高级参数，可以为空字典或直接省略
+        # 内置重试机制，替代旧的装饰器
+        max_retries=3,
+    )
+
+    # 2. 将输入的字典列表转换为 LangChain 的消息对象
+    # 这是一个必要的适配步骤
+    langchain_messages = []
+    for msg in messages:
+        role = msg.get("role")
+        content = msg.get("content", "")
+        # 从字典中获取 name，如果不存在则为 None
+        name = msg.get("name")
+
+        if role == "user":
+            langchain_messages.append(HumanMessage(content=content, name=name))
+        elif role == "assistant":
+            langchain_messages.append(AIMessage(content=content, name=name))
+        elif role == "system":
+            # 这会正确处理您提供的 few-shot 示例
+            langchain_messages.append(SystemMessage(content=content, name=name))
+        else:
+            # 为其他可能的角色（如 'tool'）提供一个通用处理
+            langchain_messages.append(ChatMessage(role=role, content=content))
+
+    # 3. 调用 LLM 并获取结果
+    response = llm.invoke(langchain_messages)
+
+    # 4. 提取并返回内容，保持与旧函数相同的字符串输出
+    return response.content
 
 
 @retry_with_exponential_backoff

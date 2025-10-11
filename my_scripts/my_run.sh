@@ -21,3 +21,13 @@ sudo apt-get install libatk1.0-0\
     libxdamage1\                                 
     libpango-1.0-0\                              
     libasound2      
+
+
+
+python my_run.py \
+  --instruction_path agent/prompts/jsons/p_cot_id_actree_2s.json \
+  --test_start_idx 27 \
+  --test_end_idx 28 \
+  --model gpt-4o \
+  --result_dir result_my_run \
+  --max_steps 10

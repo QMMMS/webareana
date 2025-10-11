@@ -171,7 +171,7 @@ def construct_agent(args: argparse.Namespace) -> Agent:
             args.instruction_path, lm_config=llm_config, tokenizer=tokenizer
         )
         agent = PromptAgent(
-            action_set_tag=args.action_set_tag,
+            action_set_tag=args.action_set_tag,  # id_accessibility_tree
             lm_config=llm_config,
             prompt_constructor=prompt_constructor,
         )
