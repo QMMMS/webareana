@@ -126,9 +126,21 @@ class RenderHelper(object):
 
         self.action_set_tag = action_set_tag
 
-        self.render_file = open(
-            Path(result_dir) / f"render_{task_id}.html", "a+"
-        )
+        render_file_path = Path(result_dir) / f"render_{task_id}.html"
+
+        # 如果已经存在，后续 _1，_2，。。。。。。。
+        if render_file_path.exists():
+            index = 1
+            while True:
+                new_render_file_path = Path(result_dir) / f"render_{task_id}_{index}.html"
+                if new_render_file_path.exists():
+                    index += 1
+                else:
+                    render_file_path = new_render_file_path
+                    break
+
+        self.render_file = open(render_file_path, "a+")
+
         self.render_file.truncate(0)
         # write init template
         self.render_file.write(HTML_TEMPLATE.format(body=f"{_config_str}"))

@@ -323,8 +323,7 @@ def generate_from_openai_chat_completion_new(
             # 这会正确处理您提供的 few-shot 示例
             langchain_messages.append(SystemMessage(content=content, name=name))
         else:
-            # 为其他可能的角色（如 'tool'）提供一个通用处理
-            langchain_messages.append(ChatMessage(role=role, content=content))
+            raise ValueError(f"Invalid role: {role}")
 
     # 3. 调用 LLM 并获取结果
     response = llm.invoke(langchain_messages)

@@ -122,10 +122,18 @@ class PromptAgent(Agent):
         prompt = self.prompt_constructor.construct(
             trajectory, intent, meta_data
         )
+
+        with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
+            f.write(str(prompt) + "\n")
+
         lm_config = self.lm_config
         n = 0
         while True:
             response = call_llm(lm_config, prompt)
+
+            with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
+                f.write(str(response) + "\n")
+
             force_prefix = self.prompt_constructor.instruction[
                 "meta_data"
             ].get("force_prefix", "")

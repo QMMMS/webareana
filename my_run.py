@@ -36,10 +36,10 @@ from browser_env.helper_functions import (
 from evaluation_harness import evaluator_router
 
 
-os.environ['LANGSMITH_TRACING'] = 'true'
-os.environ['LANGSMITH_ENDPOINT'] = 'https://api.smith.langchain.com'
-os.environ['LANGSMITH_API_KEY'] = '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'
-os.environ['LANGSMITH_PROJECT'] = 'pr-sweaty-liquidity-60'
+os.environ['LANGSMITH_TRACING'] = 'false'
+os.environ['LANGSMITH_ENDPOINT'] = ''
+os.environ['LANGSMITH_API_KEY'] = ''
+os.environ['LANGSMITH_PROJECT'] = ''
 
 
 LOG_FOLDER = "log_files"
@@ -361,12 +361,16 @@ meta_data = {"action_history": ["None"]}
 
 #====================================================================
 
+with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
+    f.write("==================================================================== \n")
+    f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\n")
+    f.write("start recording \n")
+
 early_stop_flag, stop_info = early_stop(
     trajectory, max_steps, early_stop_thresholds
 )
 
-with open("/home/zjusst/qms/webarena/my_scripts/stage_1_explore/prompt_and_response.log", "a") as f:
-    f.write("start recording \n")
+
 
 if early_stop_flag:
     action = create_stop_action(f"Early stop: {stop_info}")
@@ -380,3 +384,50 @@ else:
         action = create_stop_action(f"ERROR: {str(e)}")
 
 trajectory.append(action)
+
+
+#########################################################################
+
+action_str = get_action_description(
+    action,
+    state_info["info"]["observation_metadata"],
+    action_set_tag=args.action_set_tag,
+    prompt_constructor=agent.prompt_constructor
+    if isinstance(agent, PromptAgent)
+    else None,
+)
+render_helper.render(
+    action, state_info, meta_data, args.render_screenshot
+)
+meta_data["action_history"].append(action_str)
+
+# if action["action_type"] == ActionTypes.STOP:
+#     break
+
+obs, _, terminated, _, info = env.step(action)
+state_info = {"observation": obs, "info": info}
+trajectory.append(state_info)
+
+trajectory.append(create_stop_action(""))
+
+# if terminated:
+#     # add a action place holder
+#     trajectory.append(create_stop_action(""))
+#     break
+
+
+if args.save_trace_enabled:
+    trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}.zip"
+    if trace_file_path.exists():
+        index = 1
+        while True:
+            new_trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}_{index}.zip"
+            if new_trace_file_path.exists():
+                index += 1
+            else:
+                trace_file_path = new_trace_file_path
+                break
+    env.save_trace(trace_file_path)
+
+render_helper.close()
+env.close()
