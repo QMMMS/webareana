@@ -9,6 +9,26 @@ from browser_env.utils import StateInfo
 from llms import lm_config
 from llms.tokenizers import Tokenizer
 from llms.utils import APIInput
+import random
+
+
+def pick_ranking_random_action(action_dict: dict[str, int], chosen_count: int) -> str:
+    """
+    从 action_dict 中按照 count 加权随机取 chosen_count 个 action
+    如果 action_dict 小于等于 chosen_count 个，则全要
+    如果 action_dict 大于 chosen_count 个，则按照 count 加权随机取 chosen_count 个，但是每个 action 只能被取一次
+    返回一个 list，list 中是 action 的 list
+    """
+    if len(action_dict) <= chosen_count:
+        return list(action_dict.keys())
+    else:
+        action_list = []
+        for _ in range(chosen_count):
+            action = random.choices(list(action_dict.keys()), weights=list(action_dict.values()))[0]
+            action_list.append(action)
+            action_dict[action] = 0
+            action_dict = {k: v for k, v in action_dict.items() if v > 0}
+        return action_list
 
 
 class Instruction(TypedDict):
@@ -215,6 +235,37 @@ class CoTPromptConstructor(PromptConstructor):
         super().__init__(instruction_path, lm_config, tokenizer)
         self.answer_phrase = self.instruction["meta_data"]["answer_phrase"]
 
+
+    def get_history_actions(self, url: str) -> str:
+        """
+        在 /home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv 中
+        格式是 url#####real_url#####action
+        找到所有 url 为 url 的行，格式化为字符串，格式为
+        ```
+        click [id] where [id] is link 'Forums';
+        click [id] where [id] is link 'Wiki';
+        ```
+        """
+        
+        ret_list = {}  # key: "action", value: "count"
+        with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "r") as f:
+            for line in f:
+                try:
+                    old_url, real_url, action = line.split("#####")
+                    if old_url == url:
+                        if action not in ret_list:
+                            ret_list[action] = 0
+                        ret_list[action] += 1
+                except Exception as e:
+                    continue
+
+        ret_list = pick_ranking_random_action(ret_list, 5)
+        ret = ""
+        for action in ret_list:
+            ret += f"{action};\n"
+        return ret
+            
+
     def construct(
         self,
         trajectory: Trajectory,
@@ -239,8 +290,12 @@ class CoTPromptConstructor(PromptConstructor):
             objective=intent,
             url=self.map_url_to_real(url),
             observation=obs,
+            history=self.get_history_actions(url),
             previous_action=previous_action_str,
         )
+
+        with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "a") as f:
+            f.write(f"{url}#####{self.map_url_to_real(url)}#####")
 
         assert all([f"{{k}}" not in current for k in keywords])
 

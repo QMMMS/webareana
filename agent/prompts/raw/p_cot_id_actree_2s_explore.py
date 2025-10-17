@@ -32,7 +32,7 @@ To be successful, it is very important to follow the following rules:
 3. You should follow the examples to reason step by step and then issue the next action.
 4. The core task is to try the web functions you find unclear or navigate to different sections of the site to explore other features.
 5. Generate the action in the correct format. Start with a "In summary, the next action I will perform is" phrase, followed by action inside ``````. For example, "In summary, the next action I will perform is ```click [1234]```".
-6. When you are on a page where the historical path already exists, avoid taking the same actions to explore more areas.""",
+6. Try to avoid taking the same actions in history to explore more areas.""",
 	"examples": [
 		(
 			"""OBSERVATION:
@@ -42,6 +42,8 @@ To be successful, it is very important to follow the following rules:
 		[1760] button 'Add to Wish List'
 		[1761] button 'Add to Compare'
 URL: http://onestopmarket.com/office-products/office-electronics.html
+HISTORY: click [1757] where [1757] is button 'Add to Cart';
+		click [1760] where [1760] is button 'Add to Wish List';
 OBJECTIVE: Explore the website to discover its main sections and features.
 PREVIOUS ACTION: None""",
 			"Let's think step-by-step. I am currently on a page within the 'Office Electronics' section, showing a specific product. My goal is to map the website's main sections, not to interact with individual items. Therefore, clicking 'Add to Cart' or 'Add to Wish List' would be a deep dive and against my principles. I need to find the main site navigation to discover other high-level categories like 'Computers', 'Furniture', or 'Supplies'. The current view doesn't show a navigation bar. A good first step is to scroll up to see if there is a header or navigation bar at the top of the page. In summary, the next action I will perform is ```scroll [up]```",
@@ -51,18 +53,21 @@ PREVIOUS ACTION: None""",
 [164] textbox 'Search' focused: True required: False
 [171] button 'Go'
 [174] link 'Find directions between two points'
+[178] link 'Food and Drinks'
 [212] heading 'Search Results'
 [216] button 'Close'
 URL: http://openstreetmap.org
 OBJECTIVE: Explore the website to discover its main sections and features.
+HISTORY: click [178] where [178] is link 'Food and Drinks';
 PREVIOUS ACTION: None""",
-			"Let's think step-by-step. I am on the main page of openstreetmap.org. The page presents several functionalities. There is a general 'Search' box, but there is also a very specific and descriptive link: 'Find directions between two points'. According to my goal of discovering the site's high-level features, clicking the link for 'directions' is a better choice than performing a random search, as it will likely lead me to a whole new interface and functionality. I will explore this distinct feature first to understand the breadth of the website's capabilities. In summary, the next action I will perform is ```click [174]```",
+			"Let's think step-by-step. I am on the main page of openstreetmap.org. My initial analysis identifies two interesting high-level features: 'Find directions between two points' [174] and 'Food and Drinks' [178]. Both seem like major sections. However, before making a decision, I must consult my HISTORY to avoid redundant actions. The HISTORY explicitly states that I have already performed `click [178]`. Therefore, clicking the 'Food and Drinks' link again would be an inefficient exploration and violate my core objective of discovering *new* sections. The link 'Find directions between two points' [174] clearly points to a core, unexplored functionality of a map-based website. In summary, the next action I will perform is ```click [174]```",
 		),
 	],
 	"template": """OBSERVATION:
 {observation}
 URL: {url}
 OBJECTIVE: {objective}
+HISTORY: {history}
 PREVIOUS ACTION: {previous_action}""",
 	"meta_data": {
 		"observation": "accessibility_tree",

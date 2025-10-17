@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-
+import csv
 import openai
 
 from agent import (
@@ -34,7 +34,7 @@ from browser_env.helper_functions import (
     get_action_description,
 )
 from evaluation_harness import evaluator_router
-
+from browser_env.env_config import URL_MAPPINGS
 
 os.environ['LANGSMITH_TRACING'] = 'false'
 os.environ['LANGSMITH_ENDPOINT'] = ''
@@ -256,6 +256,52 @@ def early_stop(
 
     return False, ""
 
+
+def map_url_to_real(url: str) -> str:
+    for i, j in URL_MAPPINGS.items():
+        if i in url:
+            url = url.replace(i, j)
+    return url
+
+def map_url_to_local(url: str) -> str:
+    for i, j in URL_MAPPINGS.items():
+        if j in url:
+            url = url.replace(j, i)
+        if j.replace("http", "https") in url:
+            url = url.replace(j.replace("http", "https"), i)
+    return url
+
+
+def save_trajectory(trajectory, save_path):
+    traj_save = []
+    for i, item in enumerate(trajectory):
+        # 如果是状态，即 item[0] 为 dict 且包含 'observation' 和 'info' 键
+        if isinstance(item[0], dict) and 'observation' in item[0] and 'info' in item[0]:
+            continue
+        # 如果是动作，即 item[0] 为 dict 且包含 'raw_prediction' 且 i+1
+        elif isinstance(item[0], dict) and 'raw_prediction' in item[0] and i+1 < len(trajectory):
+
+            temp_action = item[0]
+            temp_action['coords'] = temp_action['coords'].tolist()
+
+            step_data = {
+                "url_before": trajectory[i-1][0]['info']["page"].url,
+                "url_after": trajectory[i+1][0]['info']["page"].url,
+                "url_real_before": trajectory[i-1][1],
+                "url_real_after": trajectory[i+1][1],
+                "a11y_before": trajectory[i-1][0]['observation']['text'],
+                "a11y_after": trajectory[i+1][0]['observation']['text'],
+                "state_before": trajectory[i-1][0]['info']['observation_metadata'],
+                "state_after": trajectory[i+1][0]['info']['observation_metadata'],
+                "action": temp_action,
+                "reasoning": temp_action['raw_prediction'],
+                "action_str": item[1]
+            }
+            traj_save.append(step_data)
+
+    with open(save_path, "w") as f:
+        json.dump(traj_save, f, indent=4)
+
 #====================================================
 
 
@@ -313,7 +359,6 @@ config_file_list = test_file_list
 
 #======================================================================
 
-
 config_file = config_file_list[0]
 
 render_helper = RenderHelper(
@@ -353,9 +398,11 @@ logger.info(f"[Intent]: {intent}")
 
 agent.reset(config_file)
 trajectory: Trajectory = []
+to_save_trajectory = []
 obs, info = env.reset(options={"config_file": config_file})
 state_info: StateInfo = {"observation": obs, "info": info}
 trajectory.append(state_info)
+to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
 
 meta_data = {"action_history": ["None"]}
 
@@ -366,68 +413,80 @@ with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.
     f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\n")
     f.write("start recording \n")
 
-early_stop_flag, stop_info = early_stop(
-    trajectory, max_steps, early_stop_thresholds
-)
+while True:
+
+    early_stop_flag, stop_info = early_stop(
+        trajectory, max_steps, early_stop_thresholds
+    )
+
+    if early_stop_flag:
+        action = create_stop_action(f"Early stop: {stop_info}")
+    else:
+        try:
+            action = agent.next_action(
+                trajectory, intent, meta_data=meta_data
+            )
+        except ValueError as e:
+            # get the error message
+            action = create_stop_action(f"ERROR: {str(e)}")
+
+    trajectory.append(action)
+
+    #########################################################################
+
+    action_str = get_action_description(
+        action,
+        state_info["info"]["observation_metadata"],
+        action_set_tag=args.action_set_tag,
+        prompt_constructor=agent.prompt_constructor
+        if isinstance(agent, PromptAgent)
+        else None,
+    )
+    render_helper.render(
+        action, state_info, meta_data, args.render_screenshot
+    )
+    meta_data["action_history"].append(action_str)
+
+    with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "a") as f:
+        f.write(f"{action_str}\n")
+
+    to_save_trajectory.append((action, action_str))
+
+    if action["action_type"] == ActionTypes.STOP:
+        break
+
+    obs, _, terminated, _, info = env.step(action)
+    state_info = {"observation": obs, "info": info}
+    trajectory.append(state_info)
+    to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
+
+    if terminated:
+        # add a action place holder
+        trajectory.append(create_stop_action(""))
+        to_save_trajectory.append(create_stop_action(""))
+        break
 
 
 
-if early_stop_flag:
-    action = create_stop_action(f"Early stop: {stop_info}")
-else:
-    try:
-        action = agent.next_action(
-            trajectory, intent, meta_data=meta_data
-        )
-    except ValueError as e:
-        # get the error message
-        action = create_stop_action(f"ERROR: {str(e)}")
+trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}.zip"
+if trace_file_path.exists():
+    index = 1
+    while True:
+        new_trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}_{index}.zip"
+        if new_trace_file_path.exists():
+            index += 1
+        else:
+            trace_file_path = new_trace_file_path
+            break
 
-trajectory.append(action)
+env.save_trace(trace_file_path)
 
+save_trajectory(to_save_trajectory, Path(args.result_dir) / "trajs" / f"{task_id}_{index}.json")
 
-#########################################################################
-
-action_str = get_action_description(
-    action,
-    state_info["info"]["observation_metadata"],
-    action_set_tag=args.action_set_tag,
-    prompt_constructor=agent.prompt_constructor
-    if isinstance(agent, PromptAgent)
-    else None,
-)
-render_helper.render(
-    action, state_info, meta_data, args.render_screenshot
-)
-meta_data["action_history"].append(action_str)
-
-# if action["action_type"] == ActionTypes.STOP:
-#     break
-
-obs, _, terminated, _, info = env.step(action)
-state_info = {"observation": obs, "info": info}
-trajectory.append(state_info)
-
-trajectory.append(create_stop_action(""))
-
-# if terminated:
-#     # add a action place holder
-#     trajectory.append(create_stop_action(""))
-#     break
-
-
-if args.save_trace_enabled:
-    trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}.zip"
-    if trace_file_path.exists():
-        index = 1
-        while True:
-            new_trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}_{index}.zip"
-            if new_trace_file_path.exists():
-                index += 1
-            else:
-                trace_file_path = new_trace_file_path
-                break
-    env.save_trace(trace_file_path)
+# import pickle
+# trajectory_save_path = Path(args.result_dir) / "trajs" / f"{task_id}_{index}.pkl"
+# with trajectory_save_path.open("wb") as f:
+#     pickle.dump(to_save_trajectory, f)
 
 render_helper.close()
 env.close()

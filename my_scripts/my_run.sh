@@ -24,7 +24,7 @@ sudo apt-get install libatk1.0-0\
 
 
 
-python my_run.py \
+python stage_1_explore_code.py \
   --instruction_path agent/prompts/jsons/p_cot_id_actree_2s_explore.json \
   --test_start_idx 812 \
   --test_end_idx 813 \
