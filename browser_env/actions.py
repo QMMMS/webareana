@@ -1524,6 +1524,9 @@ def create_id_based_action(action_str: str) -> Action:
             return create_hover_action(element_id=element_id)
         case "type":
             # add default enter flag
+            # 如果出现 "press_enter_after="，则去掉这个
+            if "press_enter_after=" in action_str:
+                action_str = action_str.replace("press_enter_after=", "")
             if not (action_str.endswith("[0]") or action_str.endswith("[1]")):
                 action_str += " [1]"
 

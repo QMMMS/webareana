@@ -259,10 +259,23 @@ class CoTPromptConstructor(PromptConstructor):
                 except Exception as e:
                     continue
 
-        ret_list = pick_ranking_random_action(ret_list, 5)
+        this_time_actions = []
+        with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "r") as f:
+            # 找到最底下的 stop [Early stop: Reach max steps 10] 一行，从这里再往下读
+            for line in f:
+                if "stop [Early stop: Reach max steps 10]" in line or "stop [Early stop: Failed to parse actions for 3 times]" in line:
+                    this_time_actions.clear()
+                else:
+                    this_time_actions.append(line.split("#####")[2])
+
+        ret_list = pick_ranking_random_action(ret_list, 10)
+        
         ret = ""
+        for page in this_time_actions:
+            ret += f"{page}"
+        ret += ";\n"
         for action in ret_list:
-            ret += f"{action};\n"
+            ret += f"{action}"
         return ret
             
 

@@ -32,7 +32,8 @@ To be successful, it is very important to follow the following rules:
 3. You should follow the examples to reason step by step and then issue the next action.
 4. The core task is to try the web functions you find unclear or navigate to different sections of the site to explore other features.
 5. Generate the action in the correct format. Start with a "In summary, the next action I will perform is" phrase, followed by action inside ``````. For example, "In summary, the next action I will perform is ```click [1234]```".
-6. Try to avoid taking the same actions in history to explore more areas.""",
+6. Try to avoid taking the same actions in history to explore more areas.
+7. You are encouraged to use different types of actions(click, type, scroll, etc.) to explore more areas.""",
 	"examples": [
 		(
 			"""OBSERVATION:
@@ -46,7 +47,7 @@ HISTORY: click [1757] where [1757] is button 'Add to Cart';
 		click [1760] where [1760] is button 'Add to Wish List';
 OBJECTIVE: Explore the website to discover its main sections and features.
 PREVIOUS ACTION: None""",
-			"Let's think step-by-step. I am currently on a page within the 'Office Electronics' section, showing a specific product. My goal is to map the website's main sections, not to interact with individual items. Therefore, clicking 'Add to Cart' or 'Add to Wish List' would be a deep dive and against my principles. I need to find the main site navigation to discover other high-level categories like 'Computers', 'Furniture', or 'Supplies'. The current view doesn't show a navigation bar. A good first step is to scroll up to see if there is a header or navigation bar at the top of the page. In summary, the next action I will perform is ```scroll [up]```",
+			"Let's think step-by-step. My goal is to explore the website's features. I am currently on a product page which contains several key e-commerce functionalities represented by buttons. Before taking an action, I must consult my HISTORY to ensure I am discovering new information. The history shows I have already interacted with 'Add to Cart' and 'Add to Wish List'. Repeating these actions would be redundant. By clicking button 'Add to Compare' [1761], I can discover a new capability of the website—how it handles product comparisons. This is a valuable piece of information for my exploration goal and is the most logical next step to take to expand my knowledge without repeating past actions. In summary, the next action I will perform is ```click [1761]```",
 		),
 		(
 			"""OBSERVATION:
@@ -60,7 +61,7 @@ URL: http://openstreetmap.org
 OBJECTIVE: Explore the website to discover its main sections and features.
 HISTORY: click [178] where [178] is link 'Food and Drinks';
 PREVIOUS ACTION: None""",
-			"Let's think step-by-step. I am on the main page of openstreetmap.org. My initial analysis identifies two interesting high-level features: 'Find directions between two points' [174] and 'Food and Drinks' [178]. Both seem like major sections. However, before making a decision, I must consult my HISTORY to avoid redundant actions. The HISTORY explicitly states that I have already performed `click [178]`. Therefore, clicking the 'Food and Drinks' link again would be an inefficient exploration and violate my core objective of discovering *new* sections. The link 'Find directions between two points' [174] clearly points to a core, unexplored functionality of a map-based website. In summary, the next action I will perform is ```click [174]```",
+			"Let's think step-by-step. I am on the main page of openstreetmap.org. My initial analysis identifies several interesting high-level features: 'Find directions between two points' [174], 'Food and Drinks' [178], and 'Search' textbox [164]. All seem like major sections. However, before making a decision, I must consult my HISTORY to avoid redundant actions. The HISTORY explicitly states that I have already performed `click [178]` where [178] is link 'Food and Drinks'. Therefore, clicking the 'Food and Drinks' link again would be an inefficient exploration. But I also want to explore more areas, so I will scroll the page down and see if there are more sections to explore. In summary, the next action I will perform is ```scroll [down]```",
 		),
 	],
 	"template": """OBSERVATION:

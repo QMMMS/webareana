@@ -361,132 +361,140 @@ config_file_list = test_file_list
 
 config_file = config_file_list[0]
 
-render_helper = RenderHelper(
-    config_file, args.result_dir, args.action_set_tag
-)
+for repeat_time in range(30):
 
-# get intent
-with open(config_file) as f:
-    _c = json.load(f)
-    intent = _c["intent"]
-    task_id = _c["task_id"]
-    # automatically login
-    if _c["storage_state"]:
-        cookie_file_name = os.path.basename(_c["storage_state"])
-        comb = get_site_comb_from_filepath(cookie_file_name)
-        temp_dir = tempfile.mkdtemp()
-        # subprocess to renew the cookie
-        subprocess.run(
-            [
-                "python",
-                "browser_env/auto_login.py",
-                "--auth_folder",
-                temp_dir,
-                "--site_list",
-                *comb,
-            ]
-        )
-        _c["storage_state"] = f"{temp_dir}/{cookie_file_name}"
-        assert os.path.exists(_c["storage_state"])
-        # update the config file
-        config_file = f"{temp_dir}/{os.path.basename(config_file)}"
-        with open(config_file, "w") as f:
-            json.dump(_c, f)
-
-logger.info(f"[Config file]: {config_file}")
-logger.info(f"[Intent]: {intent}")
-
-agent.reset(config_file)
-trajectory: Trajectory = []
-to_save_trajectory = []
-obs, info = env.reset(options={"config_file": config_file})
-state_info: StateInfo = {"observation": obs, "info": info}
-trajectory.append(state_info)
-to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
-
-meta_data = {"action_history": ["None"]}
-
-#====================================================================
-
-with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
-    f.write("==================================================================== \n")
-    f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\n")
-    f.write("start recording \n")
-
-while True:
-
-    early_stop_flag, stop_info = early_stop(
-        trajectory, max_steps, early_stop_thresholds
+    render_helper = RenderHelper(
+        config_file, args.result_dir, args.action_set_tag
     )
 
-    if early_stop_flag:
-        action = create_stop_action(f"Early stop: {stop_info}")
-    else:
-        try:
-            action = agent.next_action(
-                trajectory, intent, meta_data=meta_data
+    # get intent
+    with open(config_file) as f:
+        _c = json.load(f)
+        intent = _c["intent"]
+        task_id = _c["task_id"]
+        # automatically login
+        if _c["storage_state"]:
+            cookie_file_name = os.path.basename(_c["storage_state"])
+            comb = get_site_comb_from_filepath(cookie_file_name)
+            temp_dir = tempfile.mkdtemp()
+            # subprocess to renew the cookie
+            subprocess.run(
+                [
+                    "python",
+                    "browser_env/auto_login.py",
+                    "--auth_folder",
+                    temp_dir,
+                    "--site_list",
+                    *comb,
+                ]
             )
-        except ValueError as e:
-            # get the error message
-            action = create_stop_action(f"ERROR: {str(e)}")
+            _c["storage_state"] = f"{temp_dir}/{cookie_file_name}"
+            assert os.path.exists(_c["storage_state"])
+            # update the config file
+            config_file = f"{temp_dir}/{os.path.basename(config_file)}"
+            with open(config_file, "w") as f:
+                json.dump(_c, f)
 
-    trajectory.append(action)
+    logger.info(f"[Config file]: {config_file}")
+    logger.info(f"[Intent]: {intent}")
 
-    #########################################################################
-
-    action_str = get_action_description(
-        action,
-        state_info["info"]["observation_metadata"],
-        action_set_tag=args.action_set_tag,
-        prompt_constructor=agent.prompt_constructor
-        if isinstance(agent, PromptAgent)
-        else None,
-    )
-    render_helper.render(
-        action, state_info, meta_data, args.render_screenshot
-    )
-    meta_data["action_history"].append(action_str)
-
-    with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "a") as f:
-        f.write(f"{action_str}\n")
-
-    to_save_trajectory.append((action, action_str))
-
-    if action["action_type"] == ActionTypes.STOP:
-        break
-
-    obs, _, terminated, _, info = env.step(action)
-    state_info = {"observation": obs, "info": info}
+    agent.reset(config_file)
+    trajectory: Trajectory = []
+    to_save_trajectory = []
+    obs, info = env.reset(options={"config_file": config_file})
+    state_info: StateInfo = {"observation": obs, "info": info}
     trajectory.append(state_info)
     to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
 
-    if terminated:
-        # add a action place holder
-        trajectory.append(create_stop_action(""))
-        to_save_trajectory.append(create_stop_action(""))
-        break
+    meta_data = {"action_history": ["None"]}
 
+    #====================================================================
 
+    with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
+        f.write("==================================================================== \n")
+        f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\n")
+        f.write("start recording \n")
 
-trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}.zip"
-if trace_file_path.exists():
-    index = 1
     while True:
-        new_trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}_{index}.zip"
-        if new_trace_file_path.exists():
-            index += 1
+
+        early_stop_flag, stop_info = early_stop(
+            trajectory, max_steps, early_stop_thresholds
+        )
+
+        if early_stop_flag:
+            action = create_stop_action(f"Early stop: {stop_info}")
         else:
-            trace_file_path = new_trace_file_path
+            try:
+                action = agent.next_action(
+                    trajectory, intent, meta_data=meta_data
+                )
+            except ValueError as e:
+                # get the error message
+                action = create_stop_action(f"ERROR: {str(e)}")
+
+        trajectory.append(action)
+
+        #########################################################################
+
+        action_str = get_action_description(
+            action,
+            state_info["info"]["observation_metadata"],
+            action_set_tag=args.action_set_tag,
+            prompt_constructor=agent.prompt_constructor
+            if isinstance(agent, PromptAgent)
+            else None,
+        )
+        render_helper.render(
+            action, state_info, meta_data, args.render_screenshot
+        )
+        meta_data["action_history"].append(action_str)
+
+        with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "a") as f:
+            # 如果包含换行符
+            if "\n" in action_str:
+                f.write(f"invalid action_str\n")
+            else:
+                f.write(f"{action_str}\n")
+
+        to_save_trajectory.append((action, action_str))
+
+        if action["action_type"] == ActionTypes.STOP:
             break
 
-env.save_trace(trace_file_path)
+        obs, _, terminated, _, info = env.step(action)
+        state_info = {"observation": obs, "info": info}
+        trajectory.append(state_info)
+        to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
 
-save_trajectory(to_save_trajectory, Path(args.result_dir) / "trajs" / f"{task_id}_{index}.json")
+        if terminated:
+            # add a action place holder
+            trajectory.append(create_stop_action(""))
+            to_save_trajectory.append(create_stop_action(""))
+            break
 
-# import pickle
-# trajectory_save_path = Path(args.result_dir) / "trajs" / f"{task_id}_{index}.pkl"
-# with trajectory_save_path.open("wb") as f:
-#     pickle.dump(to_save_trajectory, f)
 
-render_helper.close()
+
+    trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}.zip"
+    if trace_file_path.exists():
+        index = 1
+        while True:
+            new_trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}_{index}.zip"
+            if new_trace_file_path.exists():
+                index += 1
+            else:
+                trace_file_path = new_trace_file_path
+                break
+
+    env.save_trace(trace_file_path)
+
+    save_trajectory(to_save_trajectory, Path(args.result_dir) / "trajs" / f"{task_id}_{index}.json")
+
+    # import pickle
+    # trajectory_save_path = Path(args.result_dir) / "trajs" / f"{task_id}_{index}.pkl"
+    # with trajectory_save_path.open("wb") as f:
+    #     pickle.dump(to_save_trajectory, f)
+
+    render_helper.close()
+
+#####################################################
 env.close()
