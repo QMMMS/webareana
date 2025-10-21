@@ -462,6 +462,7 @@ for repeat_time in range(30):
             break
 
         obs, _, terminated, _, info = env.step(action)
+        # _, real_info = get_state(env)
         state_info = {"observation": obs, "info": info}
         trajectory.append(state_info)
         to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
