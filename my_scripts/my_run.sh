@@ -25,9 +25,9 @@ sudo apt-get install libatk1.0-0\
 
 
 python stage_1_explore_code.py \
-  --instruction_path agent/prompts/jsons/p_cot_id_actree_2s_explore.json \
+  --instruction_path agent/prompts/jsons/p_cot_id_actree_2s_explore_stage1_v2.json \
   --test_start_idx 812 \
   --test_end_idx 813 \
   --model gpt-4o \
-  --result_dir result_stage_1_explore \
-  --max_steps 10
+  --result_dir result_stage_1_explore_v2 \
+  --max_steps 1

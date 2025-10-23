@@ -273,6 +273,11 @@ def map_url_to_local(url: str) -> str:
 
 
 def save_trajectory(trajectory, save_path):
+
+    # 如果 path 所在文件夹不存在，则创建
+    if not os.path.exists(os.path.dirname(save_path)):
+        os.makedirs(os.path.dirname(save_path))
+
     traj_save = []
     for i, item in enumerate(trajectory):
         # 如果是状态，即 item[0] 为 dict 且包含 'observation' 和 'info' 键
@@ -361,7 +366,7 @@ config_file_list = test_file_list
 
 config_file = config_file_list[0]
 
-for repeat_time in range(30):
+for repeat_time in range(1):
 
     render_helper = RenderHelper(
         config_file, args.result_dir, args.action_set_tag
@@ -406,11 +411,15 @@ for repeat_time in range(30):
     trajectory.append(state_info)
     to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
 
-    meta_data = {"action_history": ["None"]}
+    meta_data = {
+        "action_history": ["None"],
+        "save_path": args.result_dir
+    }
 
     #====================================================================
 
-    with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
+    #with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
+    with open(os.path.join(args.result_dir, "prompt_and_response.log"), "a") as f:
         f.write("==================================================================== \n")
         f.write(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + "\n")
         f.write("start recording \n")
@@ -449,9 +458,9 @@ for repeat_time in range(30):
         )
         meta_data["action_history"].append(action_str)
 
-        with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "a") as f:
+        with open(os.path.join(args.result_dir, "history_url_and_action.csv"), "a") as f:
             # 如果包含换行符
-            if "\n" in action_str:
+            if "\n" in action_str or "The previous prediction you issued was" in action_str:
                 f.write(f"invalid action_str\n")
             else:
                 f.write(f"{action_str}\n")

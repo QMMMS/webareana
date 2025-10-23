@@ -24,6 +24,7 @@ from llms import (
 )
 from llms.tokenizers import Tokenizer
 
+import os
 
 class Agent:
     """Base class for the agent"""
@@ -122,8 +123,9 @@ class PromptAgent(Agent):
         prompt = self.prompt_constructor.construct(
             trajectory, intent, meta_data
         )
+        save_path = meta_data["save_path"]
 
-        with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
+        with open(os.path.join(save_path, "prompt_and_response.log"), "a") as f:
             f.write(str(prompt) + "\n")
 
         lm_config = self.lm_config
@@ -131,7 +133,7 @@ class PromptAgent(Agent):
         while True:
             response = call_llm(lm_config, prompt)
 
-            with open("/home/zjusst/qms/webarena/result_stage_1_explore/prompt_and_response.log", "a") as f:
+            with open(os.path.join(save_path, "prompt_and_response.log"), "a") as f:
                 f.write(str(response) + "\n")
 
             force_prefix = self.prompt_constructor.instruction[

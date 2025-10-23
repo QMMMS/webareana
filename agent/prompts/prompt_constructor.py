@@ -10,6 +10,7 @@ from llms import lm_config
 from llms.tokenizers import Tokenizer
 from llms.utils import APIInput
 import random
+import os
 
 
 def pick_ranking_random_action(action_dict: dict[str, int], chosen_count: int) -> str:
@@ -236,9 +237,9 @@ class CoTPromptConstructor(PromptConstructor):
         self.answer_phrase = self.instruction["meta_data"]["answer_phrase"]
 
 
-    def get_history_actions(self, url: str) -> str:
+    def get_history_actions(self, url: str, save_path: str) -> str:
         """
-        在 /home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv 中
+        在 save_path/history_url_and_action.csv 中
         格式是 url#####real_url#####action
         找到所有 url 为 url 的行，格式化为字符串，格式为
         ```
@@ -248,7 +249,7 @@ class CoTPromptConstructor(PromptConstructor):
         """
         
         ret_list = {}  # key: "action", value: "count"
-        with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "r") as f:
+        with open(os.path.join(save_path, "history_url_and_action.csv"), "r") as f:
             for line in f:
                 try:
                     old_url, real_url, action = line.split("#####")
@@ -260,10 +261,10 @@ class CoTPromptConstructor(PromptConstructor):
                     continue
 
         this_time_actions = []
-        with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "r") as f:
-            # 找到最底下的 stop [Early stop: Reach max steps 10] 一行，从这里再往下读
+        with open(os.path.join(save_path, "history_url_and_action.csv"), "r") as f:
+            # 找到最底下的 stop [Early stop: Reach max steps一行，从这里再往下读
             for line in f:
-                if "stop [Early stop: Reach max steps 10]" in line or "stop [Early stop: Failed to parse actions for 3 times]" in line:
+                if "stop [Early stop: Reach max steps" in line or "stop [Early stop: Failed to parse actions for 3 times]" in line:
                     this_time_actions.clear()
                 else:
                     this_time_actions.append(line.split("#####")[2])
@@ -296,6 +297,8 @@ class CoTPromptConstructor(PromptConstructor):
         if max_obs_length:
             obs = self.tokenizer.decode(self.tokenizer.encode(obs)[:max_obs_length])  # type: ignore[arg-type]
 
+        save_path = meta_data["save_path"]
+
         page = state_info["info"]["page"]
         url = page.url
         previous_action_str = meta_data["action_history"][-1]
@@ -303,11 +306,12 @@ class CoTPromptConstructor(PromptConstructor):
             objective=intent,
             url=self.map_url_to_real(url),
             observation=obs,
-            history=self.get_history_actions(url),
+            history=self.get_history_actions(url, save_path),
             previous_action=previous_action_str,
         )
 
-        with open("/home/zjusst/qms/webarena/result_stage_1_explore/history_url_and_action.csv", "a") as f:
+        
+        with open(os.path.join(save_path, "history_url_and_action.csv"), "a") as f:
             f.write(f"{url}#####{self.map_url_to_real(url)}#####")
 
         assert all([f"{{k}}" not in current for k in keywords])
