@@ -35,6 +35,7 @@ from browser_env.helper_functions import (
 )
 from evaluation_harness import evaluator_router
 from browser_env.env_config import URL_MAPPINGS
+import copy
 
 os.environ['LANGSMITH_TRACING'] = 'false'
 os.environ['LANGSMITH_ENDPOINT'] = ''
@@ -300,7 +301,8 @@ def save_trajectory(trajectory, save_path):
                 "state_after": trajectory[i+1][0]['info']['observation_metadata'],
                 "action": temp_action,
                 "reasoning": temp_action['raw_prediction'],
-                "action_str": item[1]
+                "action_str": item[1],
+                "forward_intention": item[2]
             }
             traj_save.append(step_data)
 
@@ -409,7 +411,7 @@ for repeat_time in range(1):
     obs, info = env.reset(options={"config_file": config_file})
     state_info: StateInfo = {"observation": obs, "info": info}
     trajectory.append(state_info)
-    to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
+    to_save_trajectory.append((copy.deepcopy(state_info), map_url_to_real(state_info["info"]["page"].url)))
 
     meta_data = {
         "action_history": ["None"],
@@ -432,14 +434,16 @@ for repeat_time in range(1):
 
         if early_stop_flag:
             action = create_stop_action(f"Early stop: {stop_info}")
+            forward_intention = "None"
         else:
             try:
-                action = agent.next_action(
+                action, forward_intention = agent.next_action(
                     trajectory, intent, meta_data=meta_data
                 )
             except ValueError as e:
                 # get the error message
                 action = create_stop_action(f"ERROR: {str(e)}")
+                forward_intention = "None"
 
         trajectory.append(action)
 
@@ -465,7 +469,7 @@ for repeat_time in range(1):
             else:
                 f.write(f"{action_str}\n")
 
-        to_save_trajectory.append((action, action_str))
+        to_save_trajectory.append((action, action_str, forward_intention))
 
         if action["action_type"] == ActionTypes.STOP:
             break
@@ -474,7 +478,7 @@ for repeat_time in range(1):
         # _, real_info = get_state(env)
         state_info = {"observation": obs, "info": info}
         trajectory.append(state_info)
-        to_save_trajectory.append((state_info, map_url_to_real(state_info["info"]["page"].url)))
+        to_save_trajectory.append((copy.deepcopy(state_info), map_url_to_real(state_info["info"]["page"].url)))
 
         if terminated:
             # add a action place holder

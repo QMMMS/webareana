@@ -106,7 +106,7 @@ After evaluating the 812 examples, reset the environment to the initial state
 ```bash
 # stop and remove the images
 docker stop shopping_admin forum gitlab shopping
-docker remove shopping_admin forum gitlab shopping
+docker rm shopping_admin forum gitlab shopping
 # start the images
 docker run --name shopping -p 7770:80 -d shopping_final_0712
 docker run --name shopping_admin -p 7780:80 -d shopping_admin_final_0719

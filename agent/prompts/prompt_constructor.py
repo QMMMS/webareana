@@ -157,13 +157,13 @@ class PromptConstructor(object):
                 url = url.replace(j.replace("http", "https"), i)
         return url
 
-    def _extract_action(self, response: str) -> str:
+    def _extract_action(self, response: str) -> tuple[str, str]:
         raise NotImplementedError
 
-    def extract_action(self, response: str) -> str:
-        response = self._extract_action(response)
+    def extract_action(self, response: str) -> tuple[str, str]:
+        response, intention = self._extract_action(response)
         response = self.map_url_to_local(response)
-        return response
+        return response, intention
 
 
 class DirectPromptConstructor(PromptConstructor):
@@ -212,12 +212,12 @@ class DirectPromptConstructor(PromptConstructor):
         prompt = self.get_lm_api_input(intro, examples, current)
         return prompt
 
-    def _extract_action(self, response: str) -> str:
+    def _extract_action(self, response: str) -> tuple[str, str]:
         action_splitter = self.instruction["meta_data"]["action_splitter"]
         pattern = rf"{action_splitter}((.|\n)*?){action_splitter}"
         match = re.search(pattern, response)
         if match:
-            return match.group(1).strip()
+            return match.group(1).strip(), ""
         else:
             raise ActionParsingError(
                 f"Cannot parse action from response {response}"
@@ -247,6 +247,23 @@ class CoTPromptConstructor(PromptConstructor):
         click [id] where [id] is link 'Wiki';
         ```
         """
+        all_real_urls = {}  # key: real_url, value: cnt
+        all_actions = {}  # key: "action", value: "count"
+        with open(os.path.join(save_path, "history_url_and_action.csv"), "r") as f:
+            for line in f:
+                try:
+                    old_url, real_url, action = line.split("#####")
+                    all_real_urls[real_url] = all_real_urls.get(real_url, 0) + 1
+                    
+                    # 对 action 需要特殊处理，替换所有 [数字] 为 [id]
+                    action = re.sub(r'\[(\d+)\]', r'[id]', action)
+                    all_actions[action] = all_actions.get(action, 0) + 1
+
+                except Exception as e:
+                    continue
+        # 按照 cnt 为权重随机选20个
+        visited_real_urls = pick_ranking_random_action(all_real_urls, 20)
+        visited_actions = pick_ranking_random_action(all_actions, 20)
         
         ret_list = {}  # key: "action", value: "count"
         with open(os.path.join(save_path, "history_url_and_action.csv"), "r") as f:
@@ -269,9 +286,15 @@ class CoTPromptConstructor(PromptConstructor):
                 else:
                     this_time_actions.append(line.split("#####")[2])
 
-        ret_list = pick_ranking_random_action(ret_list, 10)
+        ret_list = pick_ranking_random_action(ret_list, 20)
         
         ret = ""
+        for real_url in visited_real_urls:
+            ret += f"{real_url};\n"
+        ret += "\n"
+        for action in visited_actions:
+            ret += f"{action};"
+        ret += "\n"
         for page in this_time_actions:
             ret += f"{page}"
         ret += ";\n"
@@ -319,13 +342,20 @@ class CoTPromptConstructor(PromptConstructor):
         prompt = self.get_lm_api_input(intro, examples, current)
         return prompt
 
-    def _extract_action(self, response: str) -> str:
+    def _extract_action(self, response: str) -> tuple[str, str]:
         # find the first occurence of action
         action_splitter = self.instruction["meta_data"]["action_splitter"]
-        pattern = rf"{action_splitter}((.|\n)*?){action_splitter}"
+        pattern = rf"{action_splitter}((.|\n)*?){action_splitter}"  # ((.|\n)*?) 代表任意字符和换行符，*? 代表非贪婪匹配
         match = re.search(pattern, response)
         if match:
-            return match.group(1).strip()
+            json_str = match.group(1).strip()
+            try:
+                json_obj = json.loads(json_str)
+                return json_obj["action"], json_obj["intention"]
+            except Exception as e:
+                raise ActionParsingError(
+                    f"Cannot parse action from response {response}"
+                )
         else:
             raise ActionParsingError(
                 f'Cannot find the answer phrase "{self.answer_phrase}" in "{response}"'

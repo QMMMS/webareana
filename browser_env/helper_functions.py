@@ -97,7 +97,8 @@ def get_action_description(
                     action_splitter = prompt_constructor.instruction[
                         "meta_data"
                     ]["action_splitter"]
-                    action_str = f'The previous prediction you issued was "{action["raw_prediction"]}". However, the format was incorrect. Ensure that the action is wrapped inside a pair of {action_splitter} and enclose arguments within [] as follows: {action_splitter}action [arg] ...{action_splitter}.'
+                    #action_str = f'The previous prediction you issued was "{action["raw_prediction"]}". However, the format was incorrect. Ensure that the action is wrapped inside a pair of {action_splitter} and enclose arguments within [] as follows: {action_splitter}action [arg] ...{action_splitter}.'
+                    action_str = f'The previous prediction you issued was "{action["raw_prediction"]}". However, the format was incorrect. Ensure that the action and intention are wrapped inside a json object with keys "action" and "intention", and enclosed inside ``````: ```{{"action": "your action", "intention": "your intention"}}```.'
                 else:
                     action_str = action2str(action, action_set_tag, "")
 

@@ -1,5 +1,6 @@
 import argparse
 import json
+from turtle import forward
 from typing import Any
 
 import tiktoken
@@ -34,7 +35,7 @@ class Agent:
 
     def next_action(
         self, trajectory: Trajectory, intent: str, meta_data: Any
-    ) -> Action:
+    ) -> tuple[Action, str]:
         """Predict the next action given the observation"""
         raise NotImplementedError
 
@@ -82,9 +83,9 @@ class TeacherForcingAgent(Agent):
 
     def next_action(
         self, trajectory: Trajectory, intent: str, meta_data: Any
-    ) -> Action:
+    ) -> tuple[Action, str]:
         """Predict the next action given the observation"""
-        return self.actions.pop(0)
+        return self.actions.pop(0), ""
 
     def reset(
         self,
@@ -119,7 +120,7 @@ class PromptAgent(Agent):
     @beartype
     def next_action(
         self, trajectory: Trajectory, intent: str, meta_data: dict[str, Any]
-    ) -> Action:
+    ) -> tuple[Action, str]:
         prompt = self.prompt_constructor.construct(
             trajectory, intent, meta_data
         )
@@ -142,7 +143,7 @@ class PromptAgent(Agent):
             response = f"{force_prefix}{response}"
             n += 1
             try:
-                parsed_response = self.prompt_constructor.extract_action(
+                parsed_response, forward_intention = self.prompt_constructor.extract_action(
                     response
                 )
                 if self.action_set_tag == "id_accessibility_tree":
@@ -161,7 +162,7 @@ class PromptAgent(Agent):
                     action["raw_prediction"] = response
                     break
 
-        return action
+        return action, forward_intention
 
     def reset(self, test_config_file: str) -> None:
         pass
