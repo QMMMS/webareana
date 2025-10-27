@@ -212,6 +212,11 @@ def early_stop(
     if num_steps >= max_steps:
         return True, f"Reach max steps {max_steps}"
 
+    # Case: go to other websites
+    last_state = trajectory[-1]
+    if "10.130.138.30" not in last_state["info"]["page"].url:
+        return True, f"Go to other websites, current url: {last_state['info']['page'].url}"
+
     last_k_actions: list[Action]
     action_seq: list[Action]
 
@@ -368,7 +373,7 @@ config_file_list = test_file_list
 
 config_file = config_file_list[0]
 
-for repeat_time in range(1):
+for repeat_time in range(50):
 
     render_helper = RenderHelper(
         config_file, args.result_dir, args.action_set_tag

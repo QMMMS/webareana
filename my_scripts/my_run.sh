@@ -30,4 +30,4 @@ python stage_1_explore_code.py \
   --test_end_idx 813 \
   --model gpt-4o \
   --result_dir result_stage_1_explore_v2 \
-  --max_steps 1
+  --max_steps 20
