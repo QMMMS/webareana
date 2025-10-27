@@ -127,7 +127,9 @@ class PromptAgent(Agent):
         save_path = meta_data["save_path"]
 
         with open(os.path.join(save_path, "prompt_and_response.log"), "a") as f:
-            f.write(str(prompt) + "\n")
+            # f.write(str(prompt) + "\n")
+            for m in prompt:
+                f.write(str(m['content']) + "\n\n")
 
         lm_config = self.lm_config
         n = 0
@@ -135,7 +137,7 @@ class PromptAgent(Agent):
             response = call_llm(lm_config, prompt)
 
             with open(os.path.join(save_path, "prompt_and_response.log"), "a") as f:
-                f.write(str(response) + "\n")
+                f.write(str(response) + "\n\n\n")
 
             force_prefix = self.prompt_constructor.instruction[
                 "meta_data"

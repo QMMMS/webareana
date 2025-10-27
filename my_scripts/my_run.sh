@@ -31,3 +31,12 @@ python stage_1_explore_code.py \
   --model gpt-4o \
   --result_dir result_stage_1_explore_v2 \
   --max_steps 20
+
+
+python stage_2_intention_explore.py \
+  --instruction_path agent/prompts/jsons/p_cot_id_actree_2s_explore_stage1_v2.json \
+  --test_start_idx 813 \
+  --test_end_idx 815 \
+  --model gpt-4o \
+  --result_dir result_stage_2_intended_explore \
+  --max_steps 20
