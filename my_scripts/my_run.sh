@@ -34,7 +34,7 @@ python stage_1_explore_code.py \
 
 
 python stage_2_intention_explore.py \
-  --instruction_path agent/prompts/jsons/p_cot_id_actree_2s_explore_stage1_v2.json \
+  --instruction_path agent/prompts/jsons/p_cot_id_actree_2s_explore_stage2_action.json \
   --test_start_idx 813 \
   --test_end_idx 815 \
   --model gpt-4o \

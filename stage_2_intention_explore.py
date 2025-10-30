@@ -286,7 +286,7 @@ def map_url_to_local(url: str) -> str:
     return url
 
 
-def save_trajectory(trajectory, save_path):
+def save_trajectory(trajectory, save_path, intent):
 
     # 如果 path 所在文件夹不存在，则创建
     if not os.path.exists(os.path.dirname(save_path)):
@@ -315,7 +315,9 @@ def save_trajectory(trajectory, save_path):
                 "action": temp_action,
                 "reasoning": temp_action['raw_prediction'],
                 "action_str": item[1],
-                "forward_intention": item[2]
+                "forward_intention": item[2],
+                "plan": item[3],
+                "intent": intent
             }
             traj_save.append(step_data)
 
@@ -330,10 +332,10 @@ def get_planer_history(save_path):
             # 找到最底下的 stop [Early stop: Reach max steps一行，从这里再往下读
             for line in f:
                 if "stop [Early stop:" in line:
-                    this_time_actions.clear()
+                    this_time_real_url_and_actions.clear()
                 else:
                     url, real_url, action = line.split("#####")
-                    this_time_actions.append((real_url, action))
+                    this_time_real_url_and_actions.append((real_url, action))
 
         ret = ""
         for real_url, action in this_time_real_url_and_actions:
@@ -353,8 +355,9 @@ A list of visited URLs and Actions: A list of URLs and Actions you have already 
 
 Note:
 1. Since you can't see future webpages, each sub-goal should be abstract, high-level, and not involve interacting with specific UI elements.
-2. You should use the current page as the starting point to explore the website.You can first analyze the provided accessibility tree to understand what is possible and relevant from the user's current position before formulating your plan.
+2. You should use the current page as the starting point to explore the website. You can first analyze the provided accessibility tree to understand what is possible and relevant from the user's current position before formulating your plan.
 3. Use the list of visited URLs and past actions to inform your strategy. Avoid formulating a plan that would lead to repeating a failed action or getting stuck in a navigation loop.
+4. If the user's objective is completed, you should suggest to end the session. And you should suggest next sub-goals when one same action is repeated multiple times (eg. use search too many times).
 
 Your response should be 2~3 simple sub-goals that describe what to do next to achieve the user's objective."""
 
@@ -520,7 +523,8 @@ for config_file in config_file_list:
 
     meta_data = {
         "action_history": ["None"],
-        "save_path": args.result_dir
+        "save_path": args.result_dir,
+        "plan": ""
     }
 
     #====================================================================
@@ -543,7 +547,7 @@ for config_file in config_file_list:
             try:
                 # plan prompt
                 plan = generate_plan(trajectory, intent, meta_data=meta_data)
-                exit(0)
+                meta_data['plan'] = plan
 
                 action, forward_intention = agent.next_action(
                     trajectory, intent, meta_data=meta_data
@@ -577,7 +581,7 @@ for config_file in config_file_list:
             else:
                 f.write(f"{action_str}\n")
 
-        to_save_trajectory.append((action, action_str, forward_intention))
+        to_save_trajectory.append((action, action_str, forward_intention, plan))
 
         if action["action_type"] == ActionTypes.STOP:
             break
@@ -595,7 +599,7 @@ for config_file in config_file_list:
             break
 
 
-
+    index = 0
     trace_file_path = Path(args.result_dir) / "traces" / f"{task_id}.zip"
     if trace_file_path.exists():
         index = 1
@@ -609,7 +613,10 @@ for config_file in config_file_list:
 
     env.save_trace(trace_file_path)
 
-    save_trajectory(to_save_trajectory, Path(args.result_dir) / "trajs" / f"{task_id}_{index}.json")
+    if index == 0:
+        save_trajectory(to_save_trajectory, Path(args.result_dir) / "trajs" / f"{task_id}.json", intent)
+    else:
+        save_trajectory(to_save_trajectory, Path(args.result_dir) / "trajs" / f"{task_id}_{index}.json", intent)
 
     # import pickle
     # trajectory_save_path = Path(args.result_dir) / "trajs" / f"{task_id}_{index}.pkl"

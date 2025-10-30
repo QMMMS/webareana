@@ -9,8 +9,11 @@ from browser_env.utils import StateInfo
 from llms import lm_config
 from llms.tokenizers import Tokenizer
 from llms.utils import APIInput
+from rank_bm25 import BM25Okapi
 import random
 import os
+import networkx as nx
+import csv
 
 
 def pick_ranking_random_action(action_dict: dict[str, int], chosen_count: int) -> str:
@@ -224,6 +227,120 @@ class DirectPromptConstructor(PromptConstructor):
             )
 
 
+print("start to load triplets")
+with open("/home/zjusst/qms/webarena/result_stage_1_explore_v2/flitered_triplets.csv", "r") as f:
+    reader = csv.reader(f)
+    # 跳过第一行
+    next(reader)
+    triplets = [row for row in reader]
+
+intention_corpus = [t[2] for t in triplets]
+
+page_positions = set()
+for triplet in triplets:
+    page_positions.add(triplet[0])
+    page_positions.add(triplet[3])
+
+# 转为 list
+page_positions = list(page_positions)
+page_corpus = []
+
+for page_position in page_positions:
+    file_name, traj_index, pos, real_url = eval(page_position)
+    with open(f"/home/zjusst/qms/webarena/result_stage_1_explore_v2/add_local_intention_trajs/{file_name}", "r") as f:
+        trajs = json.load(f)
+    traj = trajs[traj_index]
+    if pos == 0:
+        a11y = traj["a11y_before"]
+    else:
+        a11y = traj["a11y_after"]
+    page_corpus.append(a11y)
+
+G = nx.MultiDiGraph()
+for source, action, intent, target in triplets:
+    # 将动作和意图作为边的属性存储
+    G.add_edge(source, target, action=action, intent=intent)
+
+print("complete to load corpus and graph")
+
+
+
+def bm25_retrieval(query, corpus, top_n=3):
+    tokenized_corpus = [doc.split(" ") for doc in corpus]
+    bm25 = BM25Okapi(tokenized_corpus)
+    tokenized_query = query.split(" ")
+    top_n_docs = bm25.get_top_n(tokenized_query, corpus, n=top_n)
+    top_n_docs_index = [corpus.index(doc) for doc in top_n_docs]
+    return top_n_docs_index
+
+
+def get_guidelines(a11y_tree: str, plan: str, save_path: str) -> str:
+    page_indexs = bm25_retrieval(a11y_tree, page_corpus, top_n=3)
+    retrived_page_positions = [str(page_positions[i]) for i in page_indexs]
+    intention_indexs = bm25_retrieval(plan, intention_corpus, top_n=3)
+    retrived_intention_corpus = [triplets[i][2] for i in intention_indexs]
+
+    if len(retrived_page_positions) == 0 or len(retrived_intention_corpus) == 0:
+        return ""
+
+    guidelines = []
+
+    for page_position in retrived_page_positions:
+        for target_intent in retrived_intention_corpus:
+
+            if len(guidelines) >= 3:
+                break
+
+            candidate_edges = []
+            for u, v, data in G.edges(data=True):
+                if data.get('intent') == target_intent:
+                    candidate_edges.append({'source': u, 'target': v, 'data': data})
+                    break
+            
+            if not candidate_edges:
+                continue
+            edge = candidate_edges[0]
+            path_destination_node = edge['source']
+
+            try:
+                node_path = nx.shortest_path(G, source=page_position, target=path_destination_node)
+                trajectory = []
+                # 遍历路径中的每一步（除最后一步外）
+                for i in range(len(node_path) - 1):
+                    u, v = node_path[i], node_path[i+1]
+                    # 获取这两个节点间边的信息（这里我们取第一条，因为是最短路径）
+                    edge_data = G.get_edge_data(u, v)[0] 
+                    trajectory.append((u, edge_data['action'], edge_data['intent']))
+            
+                # 添加最后的目标边，完成轨迹
+                final_step = (edge['source'], edge['data']['action'], edge['data']['intent'])
+                trajectory.append(final_step)
+            
+                # 添加最终到达的页面
+                trajectory.append((edge['target'], None, None)) 
+                guidelines.append(trajectory)
+            except nx.NetworkXNoPath:
+                continue
+            except nx.NodeNotFound:
+                continue
+
+    if len(guidelines) == 0:
+        return ""
+
+    ret = ""
+    for guideline in guidelines:
+        for step in guideline:
+            page, action, intent = step
+            _, _, _, real_url = eval(page)
+            if action:
+                ret += f"{real_url} with action {action} and intention {intent} --> "
+            else:
+                ret += f"{real_url}"
+        ret += "\n"
+    ret += "\n"
+    return ret
+
+
 class CoTPromptConstructor(PromptConstructor):
     """The agent will perform step-by-step reasoning before the answer"""
 
@@ -237,7 +354,26 @@ class CoTPromptConstructor(PromptConstructor):
         self.answer_phrase = self.instruction["meta_data"]["answer_phrase"]
 
 
-    def get_history_actions(self, url: str, save_path: str) -> str:
+    def get_this_session_history_actions(self, url: str, save_path: str) -> str:
+
+        if not os.path.exists(os.path.join(save_path, "history_url_and_action.csv")):
+            return ""
+        
+        this_time_url_and_actions = []
+        with open(os.path.join(save_path, "history_url_and_action.csv"), "r") as f:
+            for line in f:
+                if "stop [Early stop:" in line:
+                    this_time_url_and_actions.clear()
+                else:
+                    url, real_url, action = line.split("#####")
+                    this_time_url_and_actions.append((real_url, action))
+        ret = ""
+        for real_url, action in this_time_url_and_actions:
+            ret += f"{real_url};{action}"
+        return ret
+
+
+    def get_history_actions(self, url: str, save_path: str, this_time: bool) -> str:
         """
         在 save_path/history_url_and_action.csv 中
         格式是 url#####real_url#####action
@@ -247,6 +383,10 @@ class CoTPromptConstructor(PromptConstructor):
         click [id] where [id] is link 'Wiki';
         ```
         """
+
+        if this_time:
+            return self.get_this_session_history_actions(url, save_path)
+
         all_real_urls = {}  # key: real_url, value: cnt
         all_actions = {}  # key: "action", value: "count"
         with open(os.path.join(save_path, "history_url_and_action.csv"), "r") as f:
@@ -325,13 +465,27 @@ class CoTPromptConstructor(PromptConstructor):
         page = state_info["info"]["page"]
         url = page.url
         previous_action_str = meta_data["action_history"][-1]
-        current = template.format(
-            objective=intent,
-            url=self.map_url_to_real(url),
-            observation=obs,
-            history=self.get_history_actions(url, save_path),
-            previous_action=previous_action_str,
-        )
+
+
+        if "plan" in meta_data and meta_data["plan"] != "":
+            plan = meta_data["plan"]
+            current = template.format(
+                objective=intent,
+                url=self.map_url_to_real(url),
+                observation=obs,
+                plan=plan,
+                guidelines=get_guidelines(obs, plan, save_path),
+                history=self.get_history_actions(url, save_path, this_time=True),
+                previous_action=previous_action_str,
+            )
+        else:
+            current = template.format(
+                objective=intent,
+                url=self.map_url_to_real(url),
+                observation=obs,
+                history=self.get_history_actions(url, save_path, this_time=False),
+                previous_action=previous_action_str,
+            )
 
         
         with open(os.path.join(save_path, "history_url_and_action.csv"), "a") as f:

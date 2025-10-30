@@ -602,7 +602,7 @@ class TextObervationProcessor(ObservationProcessor):
         try:
             browser_info = self.fetch_browser_info(page, client)
         except Exception:
-            page.wait_for_load_state("load", timeout=500)
+            page.wait_for_load_state("load", timeout=1000)
             browser_info = self.fetch_browser_info(page, client)
 
         if self.observation_type == "html":

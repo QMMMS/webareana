@@ -60,6 +60,8 @@ PREVIOUS ACTION: None""",
 {observation}
 URL: {url}
 OBJECTIVE: {objective}
+PLAN: {plan}
+GUIDELINES: {guidelines}
 HISTORY: {history}
 PREVIOUS ACTION: {previous_action}""",
 	"meta_data": {
