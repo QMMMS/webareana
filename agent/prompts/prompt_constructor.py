@@ -421,7 +421,7 @@ class CoTPromptConstructor(PromptConstructor):
         with open(os.path.join(save_path, "history_url_and_action.csv"), "r") as f:
             # 找到最底下的 stop [Early stop: Reach max steps一行，从这里再往下读
             for line in f:
-                if "stop [Early stop:" in line:
+                if "stop [Early stop:" in line or "stop [ERROR:" in line:
                     this_time_actions.clear()
                 else:
                     this_time_actions.append(line.split("#####")[2])

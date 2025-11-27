@@ -331,10 +331,13 @@ def get_planer_history(save_path):
         with open(os.path.join(save_path, "history_url_and_action.csv"), "r") as f:
             # 找到最底下的 stop [Early stop: Reach max steps一行，从这里再往下读
             for line in f:
-                if "stop [Early stop:" in line:
+                if "stop [Early stop:" in line or "stop [ERROR:" in line:
                     this_time_real_url_and_actions.clear()
                 else:
-                    url, real_url, action = line.split("#####")
+                    try:
+                        url, real_url, action = line.split("#####")
+                    except Exception:
+                        raise ValueError(f"Error splitting line: {line}")
                     this_time_real_url_and_actions.append((real_url, action))
 
         ret = ""
@@ -356,8 +359,9 @@ A list of visited URLs and Actions: A list of URLs and Actions you have already 
 Note:
 1. Since you can't see future webpages, each sub-goal should be abstract, high-level, and not involve interacting with specific UI elements.
 2. You should use the current page as the starting point to explore the website. You can first analyze the provided accessibility tree to understand what is possible and relevant from the user's current position before formulating your plan.
-3. Use the list of visited URLs and past actions to inform your strategy. Avoid formulating a plan that would lead to repeating a failed action or getting stuck in a navigation loop.
+3. Use the list of visited URLs and past actions to inform your strategy. You must avoid formulating a plan that would lead to repeating a previous action or getting stuck in a navigation loop.
 4. If the user's objective is completed, you should suggest to end the session. And you should suggest next sub-goals when one same action is repeated multiple times (eg. use search too many times).
+5. Try to quickly advance the task, rather than improving and browsing. Prevent the generation of sub-goals that have already been completed, such as duplicate searches or visits to duplicate pages.
 
 Your response should be 2~3 simple sub-goals that describe what to do next to achieve the user's objective."""
 
@@ -388,7 +392,6 @@ PREVIOUS ACTION: {previous_action}"""
     page = state_info["info"]["page"]
     previous_action_str = meta_data['action_history'][-1]
     save_path = meta_data['save_path']
-
     user_prompt = user_prompt_template.format(
         observation=obs,
         url=map_url_to_real(page.url),
@@ -397,6 +400,7 @@ PREVIOUS ACTION: {previous_action}"""
         previous_action=previous_action_str
     )
 
+    
     message = [
         {"role": "system", "content": system_prompt},
         {"role": "system", "name": "example_user", "content": user_example_prompt},
@@ -548,12 +552,12 @@ for config_file in config_file_list:
                 # plan prompt
                 plan = generate_plan(trajectory, intent, meta_data=meta_data)
                 meta_data['plan'] = plan
-
                 action, forward_intention = agent.next_action(
                     trajectory, intent, meta_data=meta_data
                 )
             except ValueError as e:
                 # get the error message
+                # 打印堆栈到 error
                 action = create_stop_action(f"ERROR: {str(e)}")
                 forward_intention = "None"
 
