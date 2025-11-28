@@ -163,3 +163,5 @@ config_files*/test.json
 
 stage_1_explore
 history
+
+*.html
